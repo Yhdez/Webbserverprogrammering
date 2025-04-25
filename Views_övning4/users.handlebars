@@ -1,8 +1,0 @@
-<h1>Användare</h1>
-<ul class="people_list">
-  {{!-- Här är en loop som loopar över arrayen users som skickats till den här templaten/mallen. --}}
-  {{#each users}}
-  {{!-- inne i loopen använder man "this" för att komma åt det aktuella elementet i arrayen --}}
-    <li>{{this.username}} <a href="/posts?userId={{this.id}}">Posts</a> </li>
-  {{/each}}
-</ul>
