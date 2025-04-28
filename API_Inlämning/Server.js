@@ -21,21 +21,22 @@ async function getDBConnnection() {
 }
 
 async function Authentication(req, res){ // Denna funktion körs för att se ifall användaren är korrekt inloggad, igenom att validera token. Den returnerar antingen true eller false
-    let token = req.headers['authorization']
+    let authHeader = req.headers['authorization']
 
-    if (!token) {
+    if (!authHeader) {
      res.sendStatus(400)
      return false
     }
+    let token = authHeader.slice(7)
     let decoded
 
     try {
       decoded = jwt.verify(token, 'SecretPassword')
 
-    } catch (err) {
-      console.log(err)
-      res.status(401).send('Invalid auth token')
-      return false
+    } 
+    catch (error) {
+        res.status(401).send('Invalid auth token')
+        return false
     }
 
     return true
