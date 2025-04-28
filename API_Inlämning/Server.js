@@ -20,7 +20,7 @@ async function getDBConnnection() {
   })
 }
 
-async function Authentication(req, res){ // Denna funktion körs för att se ifall användaren är korrekt inloggad, igenom att validera token
+async function Authentication(req, res){ // Denna funktion körs för att se ifall användaren är korrekt inloggad, igenom att validera token. Den returnerar antingen true eller false
     let token = req.headers['authorization']
 
     if (!token) {
@@ -41,12 +41,36 @@ async function Authentication(req, res){ // Denna funktion körs för att se ifa
     return true
 }
 
+async function Validate_indata(indata){ //Validerar ifall indatan är godtagbar, jämför tidigare databas värden och ser ifall indatan är unik eller inte
+    if(!indata.Username || !indata.Email || !indata.Name || !indata.Password){
+        return false //Ifall någon indata inte är angiven
+    }
+
+    let sql = `SELECT Username,email,name FROM users`
+    let connection = await getDBConnnection()
+
+    let [results] = await connection.execute(sql)
+
+    for (let User = 0; User < results.length; User++){
+        if((indata.Username === results[User].Username) || (indata.Email === results[User].email) || (indata.Name === results[User].name)){
+            return false //Indatan är inte unik och valideras som false
+        }
+    }
+    return true //Indatan är unik och valideras som true
+}
+
 app.get("/", (req, res) => {
     res.send(`<h1>Doumentation EXEMPEL</h1>
-    <ul><li> GET /users</li></ul>`)
+    <ul>
+        <li>(inloggning krävs)<b> GET /users </b>- Hämtar alla användare i databasen och listar alla namn</li>
+        <li>(inloggning krävs)<b> GET /users/{id} </b>- Returnerar användaren vilket har den angivna id'en</li>
+        <li>(inloggning krävs)<b> POST /users </b>- Skapar en ny användare i databasen. Accepterar ett json format med Username, Name, Email och Password. Alla värden förutom password behöver vara unikt gentemot de andra värdena i databasen</li>
+        <li>(inloggning krävs)<b> PUT /users/{id} </b>- Uppdaterar användaren som har den angivna id'en. json format med Username, Name och Email behövs och anger vad den id'en ska innehålla istället. Alla Värdena behöver vara unika gentemot vad som redan existerar i databasen</li>
+        <li><b> Post /login </b>- loggar in användaren ifall användaren har ett hashat lösenord och finns med i databasen. Returnerar en token</li>
+    </ul>`)
 })
 
-app.get("/users", async function (req, res) {
+app.get("/users", async function (req, res) { //Hämtar alla användare och listar dem
     try{
         const Authentication_success = await Authentication(req, res)
         if(!Authentication_success){return}
@@ -65,14 +89,9 @@ app.get("/users", async function (req, res) {
     catch (error){
         res.status(500).json({ error: 'Internal server error' })
     }
-    finally {
-        if (connection) {
-            await connection.end()
-        }
-    }
 })
 
-app.get("/users/:id", async function (req, res) {
+app.get("/users/:id", async function (req, res) { //Hämtar en användare med den angivna id'en
     try{
         const Authentication_success = await Authentication(req, res)
         if(!Authentication_success){return}
@@ -89,45 +108,27 @@ app.get("/users/:id", async function (req, res) {
     catch (error){
         res.status(500).json({ error: 'Internal server error' })
     }
-    finally {
-        if (connection) {
-            await connection.end()
-        }
-    }
 })
 
-//Post Request
-app.post('/users', async function (req, res){
-    try{
-        async function Validate_indata_for_users(indata){ //Validerar ifall indatan är godtagbar, jämför tidigare databas värden och ser ifall indatan är unik eller inte
-            if(!indata.Username || !indata.Email || !indata.Name || !indata.Password){
-                return false //Ifall någon indata inte är angiven
-            }
 
-            let sql = `SELECT Username,email,name FROM users`
-            let connection = await getDBConnnection()
+app.post('/users', async function (req, res){ //Skapar en ny användare i databasen
+    try{
+        const Authentication_success = await Authentication(req, res)
+        if(!Authentication_success){return}
     
-            let [results] = await connection.execute(sql)
-            
-            console.log(indata)
-                for (let User = 0; User < results.length; User++){
-                    if((indata.Username === results[User].Username) || (indata.Email === results[User].email) || (indata.Name === results[User].name)){
-                        return false //Indatan är inte unik och valideras som false
-                    }
-                }
-                return true //Indatan är unik och valideras som true
-        }
-    
-        if (await Validate_indata_for_users(req.body)){
+        if (await Validate_indata(req.body)){ //Validerar indatan och ser ifall värdena är unika och/eller existerande
             let Username = req.body.Username
             let Name = req.body.Name
             let Password = req.body.Password
             let Email = req.body.Email
+
+            const salt = await bcrypt.genSalt(10);  // genererar ett salt till hashning
+            const hashedPassword = await bcrypt.hash(Password, salt); //hashar lösenordet
     
             let sql = `INSERT INTO users(username, name, password, email) values(?,?,?,?)`
     
             let connection = await getDBConnnection()
-            let [Results] = await connection.execute(sql, [Username, Name, Password, Email])
+            let [Results] = await connection.execute(sql, [Username, Name, hashedPassword, Email])
     
             res.json(Results)
         }
@@ -138,79 +139,46 @@ app.post('/users', async function (req, res){
     catch (error){
         res.status(500).json({ error: 'Internal server error' })
     }
-    finally {
-        if (connection) {
-            await connection.end()
-        }
-    }
 })
 
-app.put("/users/:id", async function (req, res) {
+app.put("/users/:id", async function (req, res) { //Uppdatterar användaren i databasen med ett specifikt id
     const Authentication_success = await Authentication(req, res)
     if(!Authentication_success){return}
 
     try{
-        let connection = await getDBConnnection()
+        if (await Validate_indata(req.body)){ //Validerar indatan och ser ifall värdena är unika och/eller existerande
+            let connection = await getDBConnnection()
 
-        let sql = `UPDATE users
-        SET Username = ?, Name =?, Email = ?
-        WHERE id = ?`
-
-        let [results] = await connection.execute(sql, [
-        req.body.Username,
-        req.body.Name,
-        req.body.Email,
-        req.params.id,
-        ])
-
-        if([results]){
-            res.send(results)
+            let sql = `UPDATE users
+            SET Username = ?, Name =?, Email = ?
+            WHERE id = ?`
+    
+            let [results] = await connection.execute(sql, [
+            req.body.Username,
+            req.body.Name,
+            req.body.Email,
+            req.params.id,
+            ])
+    
+            if(results.affectedRows > 0){ //Om en användare ändras
+                res.status(200).send(results)
+            }
+            else{ //Ingen användare hittades på den id'en
+                res.status(404).send(results)
+            }
         }
         else{
-            res.status(200).send(results)
+            res.status(422).send("Wrong indata sent to server")
         }
     }
     catch (error){
         res.status(500).json({ error: 'Internal server error' })
-    }
-    finally {
-        if (connection) {
-            await connection.end()
-        }
     }
 })
 
-app.post('/register', async function(req, res) {
-    
-    try{
-        let connection = await getDBConnnection()
-            
-        const {Name, Email, Password, Username } = req.body;
-        const salt = await bcrypt.genSalt(10);  // genererar ett salt till hashning
-        const hashedPassword = await bcrypt.hash(Password, salt); //hashar lösenordet
-
-        let sql = `UPDATE users
-        set password = ?
-        where username = ? and email = ? and name = ?
-        `
-
-        let [Results] = await connection.execute(sql, [hashedPassword, Username, Email, Name])
-        
-        res.json(Results)
-    }   
-    catch (error){
-        res.status(500).json({ error: 'Internal server error' })
-    }
-    finally {
-        if (connection) {
-            await connection.end()
-        }
-    }
-
-});
    
 
-app.post('/login', async function(req, res) {
+app.post('/login', async function(req, res) { //Sköter inloggning av användaren
 
     try{
         let connection = await getDBConnnection()
@@ -238,11 +206,6 @@ app.post('/login', async function(req, res) {
     }   
     catch(error){
         res.status(500).json({ error: 'Internal server error' })
-    }
-    finally {
-        if (connection) {
-            await connection.end()
-        }
     }
 });
    
