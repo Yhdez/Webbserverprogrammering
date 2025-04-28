@@ -61,13 +61,13 @@ async function Validate_indata(indata){ //Validerar ifall indatan är godtagbar,
 }
 
 app.get("/", (req, res) => {
-    res.send(`<h1>Doumentation EXEMPEL</h1>
+    res.send(`<h1>Doumentation Routes</h1>
     <ul>
         <li>(inloggning krävs)<b> GET /users </b>- Hämtar alla användare i databasen och listar alla namn</li>
         <li>(inloggning krävs)<b> GET /users/{id} </b>- Returnerar användaren vilket har den angivna id'en</li>
         <li>(inloggning krävs)<b> POST /users </b>- Skapar en ny användare i databasen. Accepterar ett json format med Username, Name, Email och Password. Alla värden förutom password behöver vara unikt gentemot de andra värdena i databasen</li>
         <li>(inloggning krävs)<b> PUT /users/{id} </b>- Uppdaterar användaren som har den angivna id'en. json format med Username, Name och Email behövs och anger vad den id'en ska innehålla istället. Alla Värdena behöver vara unika gentemot vad som redan existerar i databasen</li>
-        <li><b> Post /login </b>- loggar in användaren ifall användaren har ett hashat lösenord och finns med i databasen. Returnerar en token</li>
+        <li><b> POST /login </b>- loggar in användaren ifall användaren har ett hashat lösenord och finns med i databasen. Returnerar en token</li>
     </ul>`)
 })
 
